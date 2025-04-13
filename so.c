@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
-#include "tresure_manager.h"
+#include "treasure_manager.h"
 #include <time.h>
 #include <fcntl.h>    // Pentru open(), O_WRONLY, O_APPEND, O_CREAT
 #include <unistd.h>   // Pentru close(), write(), mkdir()
@@ -22,7 +22,7 @@ void file_path(char *buff, size_t size, char *hunt_id, char *filename) {
 void log_action(char *hunt_id, char *action)
 {
     char log_path[256];
-    file_path(log_path, sizeof(log_path),hunt_id, "logged_hunt");
+    file_path(log_path, sizeof(log_path),hunt_id, "logged");
 
     int fd= open(log_path, O_WRONLY | O_APPEND| O_CREAT, 0666);
     
@@ -36,7 +36,7 @@ void log_action(char *hunt_id, char *action)
     close(fd);
 
     char symlink_path[256];
-    snprintf(symlink_path, sizeof(symlink_path), "logged_hunt-%s", hunt_id);
+    snprintf(symlink_path, sizeof(symlink_path), "logged-%s", hunt_id);
     symlink(log_path, symlink_path);
 }
 
@@ -90,7 +90,6 @@ void list(char *hunt_id)
 {
     char file[256];
     file_path(file, sizeof(file), hunt_id, hunt_id);
-    printf("%s",file);
     struct stat s;
 
     if(stat(file,&s) == -1)
@@ -158,11 +157,55 @@ void view(char *hunt_id, char *treasure_id)
 
 void remove_treasure(char *hunt_id, char *treasure_id)
 {
+    char file[256], tmp[280];
+    file_path(file, sizeof(file), hunt_id, hunt_id);
+    snprintf(tmp, sizeof(tmp), "%s.tmp", file);
 
+    int fd_old = open(file, O_RDONLY);
+    int fd_new = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
+    if (fd_old < 0 || fd_new < 0) {
+        perror("Failed to open files");
+        return;
+    }
+
+    treasure t;
+    int found = 0;
+
+    while (read(fd_old, &t, sizeof(treasure))) {
+        if (strcmp(t.id, treasure_id) != 0) {
+            write(fd_new, &t, sizeof(treasure));
+        } else {
+            found = 1;
+        }
+    }
+
+    close(fd_old);
+    close(fd_new);
+
+    if (found) {
+        remove(file);
+        rename(tmp, file);
+        log_action(hunt_id, "Removed a treasure");
+        printf("Treasure '%s' removed.\n", treasure_id);
+    } else {
+        remove(tmp);
+        printf("Treasure '%s' not found.\n", treasure_id);
+    }
 }
 
-void remove_hunt(char *hunt_id)
-{
 
+void remove_hunt(char *hunt_id)
+{   
+    char dir[256], file[256], log[256], link[256];
+    hunt_path(dir,sizeof(dir),hunt_id);
+    file_path(file,sizeof(file),hunt_id,hunt_id);
+    file_path(log,sizeof(log),hunt_id,"logged");
+    snprintf(link, sizeof(link), "logged-%s", hunt_id);
+
+    remove(file);
+    remove(log);
+    remove(link);
+    rmdir(dir);
 }
 
