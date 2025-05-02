@@ -21,7 +21,29 @@ typedef struct treasure
 
 void handle_function(int signal)
 {
-    printf("Monitor %d received signal",getpid());
+    printf("Monitor %d received signal: ",getpid());
+
+    FILE *f = fopen("fisier.txt", "r");
+    if (!f) return;
+
+    char cmd[128];
+    if (fgets(cmd, sizeof(cmd), f)) {
+        cmd[strcspn(cmd, "\n")] = 0;
+
+        if (strcmp(cmd, "list_hunts") == 0) {
+            printf("Listing hunts...\n");
+        } else if (strncmp(cmd, "list_treasure", 13) == 0) {
+            printf("Listing treasures...\n");
+        } else if (strncmp(cmd, "view_treasure", 13) == 0) {
+            printf("Viewing treasure...\n");
+        } else if (strcmp(cmd, "stop_monitor") == 0) {
+            printf("Stopping...\n");
+            usleep(2000000);  // 2 secunde
+            exit(0);
+        }
+    }
+
+    fclose(f);
 }
 
 int start_monitor()
@@ -60,10 +82,10 @@ int start_monitor()
     } else {
        
         monitorStatus=1;
+         return 0;
         
     }
 
-    return 0;
 }
 
 void list_hunts()
@@ -73,8 +95,14 @@ void list_hunts()
         printf("Monitor is not running\n");
         return;
     }
-}
-
+    FILE *f = fopen("fisier.txt", "w");
+if (f) 
+{
+    fprintf(f, "list_hunts\n");
+    fclose(f);
+    kill(monitorID,SIGUSR1);
+    }
+}   
 
 
 void list_treasure()
@@ -83,6 +111,17 @@ void list_treasure()
     {
         printf("Monitor is not running\n");
         return;
+    }
+
+    char hunt[32];
+    printf("Enter hunt name: \n");
+    fgets(hunt,sizeof(hunt),stdin);
+
+    FILE *f = fopen("fisier.txt", "w");
+    if (f) {
+        fprintf(f, "list_treasure %s\n", hunt);
+        fclose(f);
+    kill(monitorID,SIGUSR1);
     }
 
 }
@@ -150,7 +189,11 @@ int main()
             stop_monitor();
         }else if(strcmp(comanda,"exit\n")==0)
         {
-            break;
+            if (monitorStatus==1) {
+                printf("Monitor still running. Use stop_monitor first.\n");
+            } else {
+                break;
+            }
         }else{
             printf("Unknown command. \n");
         }
