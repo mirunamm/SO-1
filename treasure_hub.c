@@ -4,46 +4,140 @@
 #include <unistd.h> // fork()
 #include <signal.h>
 #include <sys/wait.h> //waitpid()
+#include <dirent.h>
+#include <fcntl.h> 
+#include <sys/stat.h>
+#include "treasure_manager.h"
 
 pid_t monitorID = -1;
 int monitorStatus=0;
 
-
-typedef struct treasure
+void menu()
 {
-    char id[32];
-    char username[64];
-    double latitudine,longitudine;
-    char clue[128];
-    int val;
-}treasure;
+    printf("\nChoose one of the following commands:\n");
+        printf("start_monitor\n");
+        printf("list_hunts\n");
+        printf("list_treasure\n");
+        printf("view_treasure\n");
+        printf("stop_monitor\n");
+        printf("exit\n");
+}
 
-
-void handle_function(int signal)
+int numberOfHunts(char *hunt)
 {
-    printf("Monitor %d received signal: ",getpid());
+    char file[256];
+    int k=0;
+    snprintf(file, sizeof(file), "./%s",hunt);
+    struct stat s;
 
-    FILE *f = fopen("fisier.txt", "r");
-    if (!f) return;
+    if(stat(file,&s) == -1)
+    {
+        printf("stat failed\n");
+        return 0;
+    }
 
-    char cmd[128];
-    if (fgets(cmd, sizeof(cmd), f)) {
-        cmd[strcspn(cmd, "\n")] = 0;
+    int fd= open(file,O_RDONLY);
 
-        if (strcmp(cmd, "list_hunts") == 0) {
-            printf("Listing hunts...\n");
-        } else if (strncmp(cmd, "list_treasure", 13) == 0) {
-            printf("Listing treasures...\n");
-        } else if (strncmp(cmd, "view_treasure", 13) == 0) {
-            printf("Viewing treasure...\n");
-        } else if (strcmp(cmd, "stop_monitor") == 0) {
-            printf("Stopping...\n");
-            usleep(2000000);  // 2 secunde
-            exit(0);
+    if(fd<0)
+    {
+        printf("cannot open treasure file");
+        return 0;
+
+
+    }
+    treasure t;
+
+    while(read(fd,&t,sizeof(treasure)))
+    {
+        k++;
+    }
+    close(fd);
+    return k;
+}
+
+void list1()
+{
+
+    DIR* directory=opendir(".");
+    struct dirent *di;
+
+    if(directory == NULL)
+    {
+        printf("opendir failed\n");
+        return;
+    }
+    char path[300];
+
+    while((di=readdir(directory)))
+    {
+        if(strcmp(di->d_name,".")==0 || strcmp(di->d_name,"..")==0)
+        continue;
+        snprintf(path, sizeof(path), "%s/%s",".",di->d_name);
+
+        struct stat verif;
+        if(stat(path, &verif) == 0 && S_ISDIR(verif.st_mode)) 
+        {
+
+        if(strcmp(di->d_name,".git")==0)
+        continue;
+        printf("Hunt name: %s\n",di->d_name);
+        printf("Number of treasure: %d\n",numberOfHunts(di->d_name));
         }
     }
 
-    fclose(f);
+    closedir(directory);
+    
+}
+
+void handle_function(int signal)
+{
+    if(signal==SIGUSR1)
+    {
+        system("clear");
+        kill(getppid(), SIGSTOP);
+        list1();
+        kill(getppid(), SIGCONT);
+        menu();
+
+        
+    }
+    else if(signal==SIGUSR2)
+    {
+        system("clear");
+        kill(getppid(),SIGSTOP);
+        char hunt[32];
+        printf("Enter hunt name: \n");
+        fgets(hunt,sizeof(hunt),stdin);
+        char path[100];
+        sprintf(path,"./test list %s",hunt);
+        system(path);
+        kill(getppid(),SIGCONT);
+        menu();
+
+
+    }
+    else if(signal==SIGINT)
+    {
+        system("clear");
+        kill(getppid(),SIGSTOP);
+        char hunt[30],id[30];
+        printf("Enter hunt name: \n");
+        fgets(hunt,sizeof(hunt),stdin);
+        hunt[strcspn(hunt,"\n")]='\0';
+        printf("Enter treasure id: \n");
+        fgets(id,sizeof(id),stdin);
+        id[strcspn(id,"\n")]='\0';
+        char path[100];
+        sprintf(path,"./test view %s %s",hunt,id);
+        system(path);
+        kill(getppid(),SIGCONT);
+        menu();
+
+    }else if(signal==SIGTERM)
+    {
+        system("clear");
+        _exit(0);
+    }
 }
 
 int start_monitor()
@@ -65,13 +159,35 @@ int start_monitor()
 
     if(monitorID==0)
     {
-        struct sigaction sa;
+        struct sigaction sa = {0};
         sa.sa_handler=handle_function;
+
         if(sigaction(SIGUSR1,&sa,NULL)==-1)
         {
             printf("Sigaction error\n");
             return -1;
         }
+
+        if(sigaction(SIGUSR2,&sa,NULL)==-1)
+        {
+            printf("Sigaction error\n");
+            return -1;
+        }
+
+
+        if(sigaction(SIGINT,&sa,NULL)==-1)
+        {
+            printf("Sigaction error\n");
+            return -1;
+        }
+
+
+        if(sigaction(SIGTERM,&sa,NULL)==-1)
+        {
+            printf("Sigaction error\n");
+            return -1;
+        }
+
 
         while(1)
         {
@@ -95,13 +211,8 @@ void list_hunts()
         printf("Monitor is not running\n");
         return;
     }
-    FILE *f = fopen("fisier.txt", "w");
-if (f) 
-{
-    fprintf(f, "list_hunts\n");
-    fclose(f);
+    
     kill(monitorID,SIGUSR1);
-    }
 }   
 
 
@@ -113,16 +224,8 @@ void list_treasure()
         return;
     }
 
-    char hunt[32];
-    printf("Enter hunt name: \n");
-    fgets(hunt,sizeof(hunt),stdin);
-
-    FILE *f = fopen("fisier.txt", "w");
-    if (f) {
-        fprintf(f, "list_treasure %s\n", hunt);
-        fclose(f);
-    kill(monitorID,SIGUSR1);
-    }
+    kill(monitorID,SIGUSR2);
+    
 
 }
 
@@ -134,6 +237,7 @@ void view_treasure()
         printf("Monitor is not running\n");
         return;
     }
+    kill(monitorID,SIGINT);
 
 }
 
@@ -145,10 +249,11 @@ void stop_monitor()
         return;
     }
 
-    kill(monitorID,SIGUSR1);
+    kill(monitorID,SIGTERM);
 
-    waitpid(monitorID,NULL,0);
-    printf("Monitor %d stopped\n",monitorID);
+    int status=0;
+    waitpid(monitorID,&status,0);
+    printf("Monitor %d stopped with status %d\n",monitorID,status);
     monitorID=-1;
     monitorStatus=0;
 }
@@ -163,13 +268,7 @@ int main()
 
     while(1)
     {
-        printf("\nChoose one of the following commands:\n");
-        printf("start_monitor\n");
-        printf("list_hunts\n");
-        printf("list_treasure\n");
-        printf("view_treasure\n");
-        printf("stop_monitor\n");
-        printf("exit\n");
+        menu();
         if(!fgets(comanda,sizeof(comanda),stdin)) break;
 
         if(strcmp(comanda,"start_monitor\n")==0)
