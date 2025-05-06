@@ -27,7 +27,7 @@ int numberOfHunts(char *hunt)
 {
     char file[256];
     int k=0;
-    snprintf(file, sizeof(file), "./%s",hunt);
+    snprintf(file, sizeof(file), "%s/%s",hunt,hunt);
     struct stat s;
 
     if(stat(file,&s) == -1)
@@ -66,10 +66,13 @@ void list1()
         printf("opendir failed\n");
         return;
     }
+   
     char path[300];
 
     while((di=readdir(directory)))
     {
+        
+
         if(strcmp(di->d_name,".")==0 || strcmp(di->d_name,"..")==0)
         continue;
         snprintf(path, sizeof(path), "%s/%s",".",di->d_name);
@@ -262,9 +265,6 @@ void stop_monitor()
 int main()
 {
     char comanda[64];
-
-    struct sigaction sa;
-
 
     while(1)
     {
