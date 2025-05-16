@@ -11,6 +11,7 @@
 
 pid_t monitorID = -1;
 int monitorStatus=0;
+int pfd[2];//pipe
 
 void menu()
 {
@@ -152,6 +153,12 @@ int start_monitor()
         return -1;
     }
     
+    if(pipe(pfd) < 0)
+    {
+        printf("pipe error\n");
+        return -1;
+    }
+
     monitorID = fork();
     
     if(monitorID<0)
@@ -191,6 +198,7 @@ int start_monitor()
             return -1;
         }
 
+        close(pfd[0]);
 
         while(1)
         {
@@ -201,7 +209,8 @@ int start_monitor()
     } else {
        
         monitorStatus=1;
-         return 0;
+        close(pfd[1]);
+        return 0;
         
     }
 
