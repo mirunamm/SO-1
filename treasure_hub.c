@@ -21,6 +21,7 @@ void menu()
         printf("list_treasure\n");
         printf("view_treasure\n");
         printf("stop_monitor\n");
+        printf("calculate_score\n")
         printf("exit\n");
 }
 
@@ -69,6 +70,8 @@ void list1()
     }
    
     char path[300];
+    char buf[1000]="";
+    char out[300];
 
     while((di=readdir(directory)))
     {
@@ -84,12 +87,13 @@ void list1()
 
         if(strcmp(di->d_name,".git")==0)
         continue;
-        printf("Hunt name: %s\n",di->d_name);
-        printf("Number of treasure: %d\n",numberOfHunts(di->d_name));
+        snprintf(out, sizeof(out), "Hunt name: %s\nNumber of treasures: %d\n", di->d_name, numberOfHunts(di->d_name));
+        strncat(buf, out, sizeof(buf) - strlen(buf) - 1);
         }
     }
 
     closedir(directory);
+    write(pfd[1],buf,strlen(buf));
     
 }
 
@@ -112,11 +116,40 @@ void handle_function(int signal)
         char hunt[32];
         printf("Enter hunt name: \n");
         fgets(hunt,sizeof(hunt),stdin);
+        hunt[strcspn(hunt,"\n")]='\0';
         char path[100];
-        sprintf(path,"./test list %s",hunt);
-        system(path);
+        snprintf(path,sizeof(path),"%s/%s",hunt,hunt);
+        
+        int file=open(path,O_RDONLY);
+
+        if(file<0)
+        {
+            printf("eroare\n");
+            kill(getppid(),SIGCONT);
+            return;
+        }
+
+        treasure t;
+        int k=0;
+        char buf[1000]="";
+        char out[300];
+
+        while(read(file,&t,sizeof(treasure)))
+        {
+
+            snprintf(out, sizeof(out), "Treasure IG: %s\nName: %s\nValue: %d\n", t.id,t.username,t.val);
+            strncat(buf, out, sizeof(buf) - strlen(buf) - 1);
+            k++;
+        }
+        close(file);
+
+        if (k == 0) {
+            snprintf(buf, sizeof(buf), "No treasures\n");
+        }
+
+        write(pfd[1], buf, strlen(buf));
         kill(getppid(),SIGCONT);
-        menu();
+       
 
 
     }
@@ -133,9 +166,14 @@ void handle_function(int signal)
         id[strcspn(id,"\n")]='\0';
         char path[100];
         sprintf(path,"./test view %s %s",hunt,id);
+        int buf=0;
+        buf=dup(1);
+        dup2(pfd[1],1);
         system(path);
+        dup2(buf,1);
+        close(buf);
         kill(getppid(),SIGCONT);
-        menu();
+        
 
     }else if(signal==SIGTERM)
     {
@@ -216,6 +254,19 @@ int start_monitor()
 
 }
 
+void read_pipe()
+{
+    char buf[1000];
+
+    int n = read(pfd[0],buf,sizeof(buf)-1);
+
+    if(n>0)
+    {
+        buf[n]='\0';
+        printf("%s",buf);
+    }
+}
+
 void list_hunts()
 {
     if(monitorStatus == 0)
@@ -225,6 +276,7 @@ void list_hunts()
     }
     
     kill(monitorID,SIGUSR1);
+    read_pipe();
 }   
 
 
@@ -237,7 +289,7 @@ void list_treasure()
     }
 
     kill(monitorID,SIGUSR2);
-    
+    read_pipe();
 
 }
 
@@ -250,6 +302,7 @@ void view_treasure()
         return;
     }
     kill(monitorID,SIGINT);
+    read_pipe();
 
 }
 
@@ -302,6 +355,10 @@ int main()
             } else {
                 break;
             }
+        }else if(strcmp(comanda,"calculate_score\n")==0)
+        {
+            calculate_score();
+
         }else{
             printf("Unknown command. \n");
         }
