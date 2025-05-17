@@ -21,7 +21,7 @@ void menu()
         printf("list_treasure\n");
         printf("view_treasure\n");
         printf("stop_monitor\n");
-        printf("calculate_score\n")
+        printf("calculate_score\n");
         printf("exit\n");
 }
 
@@ -321,6 +321,11 @@ void stop_monitor()
     printf("Monitor %d stopped with status %d\n",monitorID,status);
     monitorID=-1;
     monitorStatus=0;
+}
+
+void calculate_score()
+{
+    
 }
 
 
