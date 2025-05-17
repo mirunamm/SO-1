@@ -325,7 +325,68 @@ void stop_monitor()
 
 void calculate_score()
 {
-    
+    DIR* dir = opendir(".");
+    if (!dir) {
+        perror("opendir failed");
+        return;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir))) {
+        
+        if (entry->d_type != DT_DIR || strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".git") == 0)
+            continue;
+
+        char path[400];
+        snprintf(path, sizeof(path), "%s/%s", entry->d_name, entry->d_name);
+
+        struct stat st;
+        if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            int pfd1[2];
+            if (pipe(pfd1) == -1) {
+                perror("pipe failed");
+                continue;
+            }
+
+            pid_t pid = fork();
+            if (pid<0) {
+                perror("fork failed");
+                close(pfd1[0]);
+                close(pfd1[1]);
+                continue;
+            }
+
+            if(pid==0)
+            {
+                close(pfd1[0]); 
+                dup2(pfd1[1], 1); 
+                close(pfd1[1]);
+
+                char temp[300];
+                snprintf(temp,sizeof(temp),"./score %s",entry->d_name);
+                system(temp);
+                _exit(0);
+            }else{
+                close(pfd1[1]);
+
+                char buf[1000];
+
+                int n;
+
+                while( (n = read(pfd1[0],buf,sizeof(buf)-1))>0)
+                {
+                    buf[n]='\0';
+                    printf("%s",buf);
+                }
+                close(pfd1[0]);
+
+
+            }
+      
+          } 
+     }
+
+     closedir(dir);
 }
 
 
